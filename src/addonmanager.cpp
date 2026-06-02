@@ -1,5 +1,6 @@
 #include "addonmanager.h"
 #include "usbhostmanager.h"
+#include "addons/negcon_input.h"
 
 bool AddonManager::LoadAddon(GPAddon* addon) {
     if (addon->available()) {
@@ -7,6 +8,7 @@ bool AddonManager::LoadAddon(GPAddon* addon) {
         addon->setup();
         block->ptr = addon;
         addons.push_back(block);
+			  addons.push_back(new NeGconInput());
         return true;
     } else {
         delete addon; // Don't use the memory if we don't have to   
