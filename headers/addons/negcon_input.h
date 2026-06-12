@@ -15,6 +15,7 @@ public:
     virtual bool available() override;
     virtual void setup() override;
     virtual void process() override;
+    // ↓これが欠けていたのが全エラーの元凶です
     virtual void preprocess() override {}
     virtual std::string name() override { return "NeGconInput"; }
 
