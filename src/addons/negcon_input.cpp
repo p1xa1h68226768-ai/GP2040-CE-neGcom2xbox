@@ -1,6 +1,5 @@
 #include "addons/negcon_input.h"
-#include "drivermanager.h"
-#include "storage.h"
+#include "storagemanager.h"
 
 bool NeGconInput::available() {
     // 常にこのアドオンを有効化する
