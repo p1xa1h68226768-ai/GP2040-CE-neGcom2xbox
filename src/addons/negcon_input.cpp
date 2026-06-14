@@ -89,7 +89,6 @@ void NeGconInput::process() {
         last_poll_time = current_time;
 
         gpio_put(NEGCON_PIN_ATT, 0);
-        // 【修正1】Switchモードの高速通信による点滅を防ぐため、NeGconの起床時間を長め(50us)にとる
         sleep_us(50); 
         spi_transfer(0x01);
         uint8_t id = spi_transfer(0x42);
@@ -110,13 +109,19 @@ void NeGconInput::process() {
     }
 
     if (c_connected) {
-        // 【修正2】公式仕様（state.dpad）に準拠しつつ、|= を使わずに「絶対代入」でコアのゴミを粉砕する
-        uint8_t current_dpad = 0;
-        if (!(c_data1 & 0x10)) current_dpad |= GAMEPAD_MASK_UP;
-        if (!(c_data1 & 0x20)) current_dpad |= GAMEPAD_MASK_RIGHT;
-        if (!(c_data1 & 0x40)) current_dpad |= GAMEPAD_MASK_DOWN;
-        if (!(c_data1 & 0x80)) current_dpad |= GAMEPAD_MASK_LEFT;
-        gamepad->state.dpad = current_dpad; 
+        // 【修正】有識者のアドバイスに完全準拠し、dpad と dpadOriginal の両方にデータを書き込む
+        uint8_t d = 0;
+        if (!(c_data1 & 0x10)) d |= GAMEPAD_MASK_UP;
+        if (!(c_data1 & 0x20)) d |= GAMEPAD_MASK_RIGHT;
+        if (!(c_data1 & 0x40)) d |= GAMEPAD_MASK_DOWN;
+        if (!(c_data1 & 0x80)) d |= GAMEPAD_MASK_LEFT;
+
+        // ゴミデータを完全に消去してから純粋な入力を代入
+        gamepad->state.dpad &= ~GAMEPAD_MASK_DPAD;
+        gamepad->state.dpad |= d;
+
+        gamepad->state.dpadOriginal &= ~GAMEPAD_MASK_DPAD;
+        gamepad->state.dpadOriginal |= d;
         
         // デジタルボタン
         if (!(c_data1 & 0x08)) gamepad->state.buttons |= GAMEPAD_MASK_S2; 
