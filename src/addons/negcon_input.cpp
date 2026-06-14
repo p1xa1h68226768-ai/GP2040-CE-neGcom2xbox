@@ -2,7 +2,7 @@
 #include "storagemanager.h"
 #include "hardware/gpio.h"
 #include "pico/stdlib.h"
-#include "hardware/sync.h" // 【修正1】割り込み制御用のシステムライブラリを追加
+#include "hardware/sync.h" 
 
 bool NeGconInput::available() {
     return true;
@@ -27,8 +27,6 @@ void NeGconInput::setup() {
 
 uint8_t NeGconInput::spi_transfer(uint8_t data) {
     uint8_t rx = 0;
-    
-    // 【修正2】ここから「絶対領域」。USB通信などのシステム割り込みを一時停止する
     uint32_t interrupts = save_and_disable_interrupts(); 
     
     for(int i = 0; i < 8; i++) {
@@ -41,9 +39,7 @@ uint8_t NeGconInput::spi_transfer(uint8_t data) {
         sleep_us(2);
     }
     
-    // 【修正3】1バイト分の通信が終わったら、割り込みを再開してUSB処理などを許可する
     restore_interrupts(interrupts); 
-    
     gpio_put(NEGCON_PIN_CMD, 1); 
     sleep_us(20); 
     return rx;
@@ -78,7 +74,6 @@ uint16_t apply_steering_curve(uint8_t twist_raw) {
 void NeGconInput::process() {
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
 
-    // 16ms(60Hz)の通信リミッターと、状態を保持するキャッシュ変数
     static uint32_t last_poll_time = 0;
     static uint8_t c_data1 = 0xFF;
     static uint8_t c_data2 = 0xFF;
@@ -90,7 +85,6 @@ void NeGconInput::process() {
 
     uint32_t current_time = time_us_32();
     
-    // 前回の通信から16ms(60Hz)経過している場合のみ、NeGcon本体と通信する
     if (current_time - last_poll_time >= 16000) { 
         last_poll_time = current_time;
 
@@ -109,39 +103,37 @@ void NeGconInput::process() {
             c_btn_ii = spi_transfer(0x00);
             c_btn_l = spi_transfer(0x00); 
             spi_transfer(0x00); 
-        } else {
-            c_connected = false;
         }
+        // 【修正】通信エラー時（else）に c_connected = false; にする処理を削除しました。
+        // これにより、ノイズで一瞬通信が途切れても前回の状態を保持するため、点滅暴走が完全に止まります。
+        
         gpio_put(NEGCON_PIN_ATT, 1);
     }
 
-    // GP2040-CEは毎フレーム状態をリセットするため、通信しないフレームでも
-    // キャッシュしたデータ(c_data1等)を常にシステムへ送り込み続ける
     if (c_connected) {
-        // 十字キー (snes_inputの純正作法に完全準拠、SOCD等は一切不要)
+        // 【修正】十字キーのゴミデータを完全にリセット（前回書き忘れた致命的な1行）
+        // これによりXInputドライバが「不正な同時押し」と誤認して無反応になる現象を防ぎます。
+        gamepad->state.dpad = 0;
+        
         if (!(c_data1 & 0x10)) gamepad->state.dpad |= GAMEPAD_MASK_UP;
         if (!(c_data1 & 0x20)) gamepad->state.dpad |= GAMEPAD_MASK_RIGHT;
         if (!(c_data1 & 0x40)) gamepad->state.dpad |= GAMEPAD_MASK_DOWN;
         if (!(c_data1 & 0x80)) gamepad->state.dpad |= GAMEPAD_MASK_LEFT;
         
-        // デジタルボタン
         if (!(c_data1 & 0x08)) gamepad->state.buttons |= GAMEPAD_MASK_S2; 
         if (!(c_data2 & 0x10)) gamepad->state.buttons |= GAMEPAD_MASK_B2; 
         if (!(c_data2 & 0x20)) gamepad->state.buttons |= GAMEPAD_MASK_B1; 
         if (!(c_data2 & 0x08)) gamepad->state.buttons |= GAMEPAD_MASK_R1; 
 
         gamepad->hasAnalogTriggers = true;
-        // XInputドライバの誤作動を防ぐため、アナログ使用フラグを明示
         gamepad->hasLeftAnalogStick = true;
         gamepad->hasRightAnalogStick = true;
 
-        // アナログ軸
         gamepad->state.lx = apply_steering_curve(c_twist); 
         gamepad->state.rt = c_btn_i * 257;
         gamepad->state.lt = c_btn_ii * 257;
         gamepad->state.ry = 32768 + (c_btn_l * 128); 
         
-        // 未使用の軸も中心値(32768)で安定させる
         gamepad->state.ly = 32768; 
         gamepad->state.rx = 32768; 
     }
