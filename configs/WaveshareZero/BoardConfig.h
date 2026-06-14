@@ -27,8 +27,8 @@
 #define GPIO_PIN_13 GpioAction::BUTTON_PRESS_L1     // L1     | LB     | L       | L1       | 5      | P4     |
 #define GPIO_PIN_00 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
 #define GPIO_PIN_01 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
-#define GPIO_PIN_26 GpioAction::BUTTON_PRESS_L3     // L3     | LS     | LS      | L3       | 11     | LS     |
-#define GPIO_PIN_27 GpioAction::BUTTON_PRESS_R3     // R3     | RS     | RS      | R3       | 12     | RS     |
+#define GPIO_PIN_26 -1                              // USB Passthrough(D+)に使用するためL3割り当てを無効化
+#define GPIO_PIN_27 -1                              // USB Passthrough(D-)に使用するためR3割り当てを無効化
 #define GPIO_PIN_14 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
 #define GPIO_PIN_15 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
 
@@ -53,5 +53,12 @@
 #define KEY_BUTTON_A1   HID_KEY_9             // A1     | Guide  | Home    | PS       | 13     | ~      |
 #define KEY_BUTTON_A2   HID_KEY_F2            // A2     | ~      | Capture | ~        | 14     | ~      |
 #define KEY_BUTTON_FN   -1                    // Hotkey Function                                        |
+
+// ===== ここから下が今回追加した設定です =====
+// USBパススルー（認証）機能を強制的に有効化する
+#define BOARD_DEF_ADDON_USB_PASSTHROUGH_ENABLED 1
+
+// 認証用USB端子の D+ が繋がっているピン番号（26）を指定
+#define USB_PASSTHROUGH_DPLUS_PIN 26
 
 #endif
