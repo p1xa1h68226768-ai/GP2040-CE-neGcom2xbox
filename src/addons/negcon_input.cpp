@@ -104,22 +104,19 @@ void NeGconInput::process() {
             c_btn_l = spi_transfer(0x00); 
             spi_transfer(0x00); 
         }
-        // 【修正】通信エラー時（else）に c_connected = false; にする処理を削除しました。
-        // これにより、ノイズで一瞬通信が途切れても前回の状態を保持するため、点滅暴走が完全に止まります。
         
         gpio_put(NEGCON_PIN_ATT, 1);
     }
 
     if (c_connected) {
-        // 【修正】十字キーのゴミデータを完全にリセット（前回書き忘れた致命的な1行）
-        // これによりXInputドライバが「不正な同時押し」と誤認して無反応になる現象を防ぎます。
-        gamepad->state.dpad = 0;
+        // 【修正】十字キーのデータを dpad ではなく buttons に格納する
+        // （GP2040-CEのコアがここから十字キーとして自動変換してくれます）
+        if (!(c_data1 & 0x10)) gamepad->state.buttons |= GAMEPAD_MASK_UP;
+        if (!(c_data1 & 0x20)) gamepad->state.buttons |= GAMEPAD_MASK_RIGHT;
+        if (!(c_data1 & 0x40)) gamepad->state.buttons |= GAMEPAD_MASK_DOWN;
+        if (!(c_data1 & 0x80)) gamepad->state.buttons |= GAMEPAD_MASK_LEFT;
         
-        if (!(c_data1 & 0x10)) gamepad->state.dpad |= GAMEPAD_MASK_UP;
-        if (!(c_data1 & 0x20)) gamepad->state.dpad |= GAMEPAD_MASK_RIGHT;
-        if (!(c_data1 & 0x40)) gamepad->state.dpad |= GAMEPAD_MASK_DOWN;
-        if (!(c_data1 & 0x80)) gamepad->state.dpad |= GAMEPAD_MASK_LEFT;
-        
+        // デジタルボタン
         if (!(c_data1 & 0x08)) gamepad->state.buttons |= GAMEPAD_MASK_S2; 
         if (!(c_data2 & 0x10)) gamepad->state.buttons |= GAMEPAD_MASK_B2; 
         if (!(c_data2 & 0x20)) gamepad->state.buttons |= GAMEPAD_MASK_B1; 
