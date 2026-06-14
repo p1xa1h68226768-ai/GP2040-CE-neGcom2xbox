@@ -2,6 +2,7 @@
 #include "storagemanager.h"
 #include "hardware/gpio.h"
 #include "pico/stdlib.h"
+#include "hardware/sync.h" // 【修正1】割り込み制御用のシステムライブラリを追加
 
 bool NeGconInput::available() {
     return true;
@@ -26,6 +27,10 @@ void NeGconInput::setup() {
 
 uint8_t NeGconInput::spi_transfer(uint8_t data) {
     uint8_t rx = 0;
+    
+    // 【修正2】ここから「絶対領域」。USB通信などのシステム割り込みを一時停止する
+    uint32_t interrupts = save_and_disable_interrupts(); 
+    
     for(int i = 0; i < 8; i++) {
         gpio_put(NEGCON_PIN_CMD, (data & (1 << i)) ? 1 : 0);
         sleep_us(2);
@@ -35,6 +40,10 @@ uint8_t NeGconInput::spi_transfer(uint8_t data) {
         gpio_put(NEGCON_PIN_CLK, 1);
         sleep_us(2);
     }
+    
+    // 【修正3】1バイト分の通信が終わったら、割り込みを再開してUSB処理などを許可する
+    restore_interrupts(interrupts); 
+    
     gpio_put(NEGCON_PIN_CMD, 1); 
     sleep_us(20); 
     return rx;
