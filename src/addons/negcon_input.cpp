@@ -89,7 +89,8 @@ void NeGconInput::process() {
         last_poll_time = current_time;
 
         gpio_put(NEGCON_PIN_ATT, 0);
-        sleep_us(10);
+        // 【修正1】Switchモードの高速通信による点滅を防ぐため、NeGconの起床時間を長め(50us)にとる
+        sleep_us(50); 
         spi_transfer(0x01);
         uint8_t id = spi_transfer(0x42);
 
@@ -109,12 +110,13 @@ void NeGconInput::process() {
     }
 
     if (c_connected) {
-        // 【修正】十字キーのデータを dpad ではなく buttons に格納する
-        // （GP2040-CEのコアがここから十字キーとして自動変換してくれます）
-        if (!(c_data1 & 0x10)) gamepad->state.buttons |= GAMEPAD_MASK_UP;
-        if (!(c_data1 & 0x20)) gamepad->state.buttons |= GAMEPAD_MASK_RIGHT;
-        if (!(c_data1 & 0x40)) gamepad->state.buttons |= GAMEPAD_MASK_DOWN;
-        if (!(c_data1 & 0x80)) gamepad->state.buttons |= GAMEPAD_MASK_LEFT;
+        // 【修正2】公式仕様（state.dpad）に準拠しつつ、|= を使わずに「絶対代入」でコアのゴミを粉砕する
+        uint8_t current_dpad = 0;
+        if (!(c_data1 & 0x10)) current_dpad |= GAMEPAD_MASK_UP;
+        if (!(c_data1 & 0x20)) current_dpad |= GAMEPAD_MASK_RIGHT;
+        if (!(c_data1 & 0x40)) current_dpad |= GAMEPAD_MASK_DOWN;
+        if (!(c_data1 & 0x80)) current_dpad |= GAMEPAD_MASK_LEFT;
+        gamepad->state.dpad = current_dpad; 
         
         // デジタルボタン
         if (!(c_data1 & 0x08)) gamepad->state.buttons |= GAMEPAD_MASK_S2; 
