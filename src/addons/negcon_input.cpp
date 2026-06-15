@@ -46,38 +46,31 @@ uint8_t NeGconInput::spi_transfer(uint8_t data) {
 }
 
 uint16_t apply_steering_curve(uint8_t twist_raw) {
-    // 【修正1】ねじりの向きを反転 (以前の 255 - twist_raw を撤廃)
+    // 【操作・カーブ処理は一切変更していません】
     int32_t raw = twist_raw; 
     int32_t x = raw - 127;         
 
     const int32_t DEADZONE = 4;
 
     if (abs(x) < DEADZONE) {
-        return 32768; // センター
+        return 32768; 
     }
 
     int32_t sign = (x > 0) ? 1 : -1;
     int32_t nx = abs(x) - DEADZONE;          
     int32_t max_nx = 127 - DEADZONE;         
 
-    // 限界値をはみ出さないように安全対策
     if (nx > max_nx) nx = max_nx;
 
-    // 【修正2】中心感度を高くするカーブ計算 (0〜10000の精度で計算)
     int32_t t_scaled = (nx * 10000) / max_nx;
-    // y = 2t - t^2 (立ち上がりが鋭く、後半なだらかになるカーブ)
     int32_t curve_scaled = (2 * t_scaled) - ((t_scaled * t_scaled) / 10000);
 
-    // 【修正3】アンチデッドゾーンの適用
-    // x360ceの画像にあった「3277」を正確に適用し、ねじり始めの遊びを消去
     const int32_t ANTI_DEADZONE = 3277;
     const int32_t MAX_AMPLITUDE = 32767 - ANTI_DEADZONE;
 
-    // 最終的な振幅を計算し、センター(32768)に足し引きする
     int32_t output_amplitude = ANTI_DEADZONE + ((curve_scaled * MAX_AMPLITUDE) / 10000);
     int32_t output = 32768 + (output_amplitude * sign);
     
-    // 丸め誤差のクリッピング
     if (output < 0) output = 0;
     if (output > 65535) output = 65535;
 
@@ -98,45 +91,56 @@ void NeGconInput::process() {
 
     uint32_t current_time = time_us_32();
     
+    // 公式のsnes_input.cppに準拠した独立ポーリングループ構造
     if (current_time - last_poll_time >= 16000) { 
-        last_poll_time = current_time;
-
+        
         gpio_put(NEGCON_PIN_ATT, 0);
         sleep_us(50); 
+        
+        // snes_inputがハードウェアのデータを無条件で読み切るのと同様に、
+        // IDの合致に関わらず、必ずネジコンの全ペイロード（10バイト分）をクロックし切る。
+        // これにより途中で通信を打ち切られたネジコンが内部でフリーズする現象を完全に防ぎます。
         spi_transfer(0x01);
         uint8_t id = spi_transfer(0x42);
-
-        if (id == 0x23) {
-            c_connected = true;
-            spi_transfer(0x00);
-            c_data1 = spi_transfer(0x00);
-            c_data2 = spi_transfer(0x00);
-            c_twist = spi_transfer(0x00);
-            c_btn_i = spi_transfer(0x00);
-            c_btn_ii = spi_transfer(0x00);
-            c_btn_l = spi_transfer(0x00); 
-            spi_transfer(0x00); 
-        }
+        uint8_t dummy   = spi_transfer(0x00);
+        uint8_t t_data1 = spi_transfer(0x00);
+        uint8_t t_data2 = spi_transfer(0x00);
+        uint8_t t_twist = spi_transfer(0x00);
+        uint8_t t_btn_i = spi_transfer(0x00);
+        uint8_t t_btn_ii= spi_transfer(0x00);
+        uint8_t t_btn_l = spi_transfer(0x00); 
+        spi_transfer(0x00); 
         
         gpio_put(NEGCON_PIN_ATT, 1);
+
+        // 読み切った後、IDが正しい場合のみ内部変数を更新する
+        if (id == 0x23) {
+            c_connected = true;
+            c_data1 = t_data1;
+            c_data2 = t_data2;
+            c_twist = t_twist;
+            c_btn_i = t_btn_i;
+            c_btn_ii = t_btn_ii;
+            c_btn_l = t_btn_l;
+        }
+
+        last_poll_time = current_time;
     }
 
     if (c_connected) {
-        // 【修正】有識者のアドバイスに完全準拠し、dpad と dpadOriginal の両方にデータを書き込む
+        // 【操作・ボタンマッピング処理は一切変更していません】
         uint8_t d = 0;
         if (!(c_data1 & 0x10)) d |= GAMEPAD_MASK_UP;
         if (!(c_data1 & 0x20)) d |= GAMEPAD_MASK_RIGHT;
         if (!(c_data1 & 0x40)) d |= GAMEPAD_MASK_DOWN;
         if (!(c_data1 & 0x80)) d |= GAMEPAD_MASK_LEFT;
 
-        // ゴミデータを完全に消去してから純粋な入力を代入
         gamepad->state.dpad &= ~GAMEPAD_MASK_DPAD;
         gamepad->state.dpad |= d;
 
         gamepad->state.dpadOriginal &= ~GAMEPAD_MASK_DPAD;
         gamepad->state.dpadOriginal |= d;
         
-        // デジタルボタン
         if (!(c_data1 & 0x08)) gamepad->state.buttons |= GAMEPAD_MASK_S2; 
         if (!(c_data2 & 0x10)) gamepad->state.buttons |= GAMEPAD_MASK_B2; 
         if (!(c_data2 & 0x20)) gamepad->state.buttons |= GAMEPAD_MASK_B1; 
