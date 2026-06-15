@@ -6,11 +6,16 @@
 #include "gpaddon.h"
 #include "gamepad.h"
 
-// ネジコンのピン設定
+// NeGcon pin assignments
+// Matched to RP2040 SPI0 hardware function mapping:
+//   GP0 = SPI0 RX  (MISO) -> DAT
+//   GP1 = GPIO     (CS)   -> ATT (manual chip select)
+//   GP2 = SPI0 SCK        -> CLK
+//   GP3 = SPI0 TX  (MOSI) -> CMD
 #define NEGCON_PIN_DAT 0
-#define NEGCON_PIN_CMD 1
-#define NEGCON_PIN_ATT 2
-#define NEGCON_PIN_CLK 3
+#define NEGCON_PIN_ATT 1
+#define NEGCON_PIN_CLK 2
+#define NEGCON_PIN_CMD 3
 
 class NeGconInput : public GPAddon {
 public:
