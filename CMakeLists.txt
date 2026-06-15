@@ -329,6 +329,7 @@ ArduinoJson
 rndis
 hardware_adc
 hardware_pwm
+hardware_spi
 PicoPeripherals
 WiiExtension
 SNESpad
