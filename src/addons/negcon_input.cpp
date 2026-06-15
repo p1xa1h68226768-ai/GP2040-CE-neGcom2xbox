@@ -46,25 +46,38 @@ uint8_t NeGconInput::spi_transfer(uint8_t data) {
 }
 
 uint16_t apply_steering_curve(uint8_t twist_raw) {
-    int32_t raw = 255 - twist_raw; 
+    // 【修正1】ねじりの向きを反転 (以前の 255 - twist_raw を撤廃)
+    int32_t raw = twist_raw; 
     int32_t x = raw - 127;         
 
-    const int32_t DEADZONE = 4;        
-    const int32_t ANTI_DEADZONE = 20;  
+    const int32_t DEADZONE = 4;
 
     if (abs(x) < DEADZONE) {
-        return 32768; 
+        return 32768; // センター
     }
 
     int32_t sign = (x > 0) ? 1 : -1;
     int32_t nx = abs(x) - DEADZONE;          
     int32_t max_nx = 127 - DEADZONE;         
 
-    int32_t y = (nx * nx) / max_nx;
-    y = ANTI_DEADZONE + (y * (max_nx - ANTI_DEADZONE)) / max_nx;
+    // 限界値をはみ出さないように安全対策
+    if (nx > max_nx) nx = max_nx;
 
-    int32_t output = 32768 + (y * sign * 266);
+    // 【修正2】中心感度を高くするカーブ計算 (0〜10000の精度で計算)
+    int32_t t_scaled = (nx * 10000) / max_nx;
+    // y = 2t - t^2 (立ち上がりが鋭く、後半なだらかになるカーブ)
+    int32_t curve_scaled = (2 * t_scaled) - ((t_scaled * t_scaled) / 10000);
+
+    // 【修正3】アンチデッドゾーンの適用
+    // x360ceの画像にあった「3277」を正確に適用し、ねじり始めの遊びを消去
+    const int32_t ANTI_DEADZONE = 3277;
+    const int32_t MAX_AMPLITUDE = 32767 - ANTI_DEADZONE;
+
+    // 最終的な振幅を計算し、センター(32768)に足し引きする
+    int32_t output_amplitude = ANTI_DEADZONE + ((curve_scaled * MAX_AMPLITUDE) / 10000);
+    int32_t output = 32768 + (output_amplitude * sign);
     
+    // 丸め誤差のクリッピング
     if (output < 0) output = 0;
     if (output > 65535) output = 65535;
 
