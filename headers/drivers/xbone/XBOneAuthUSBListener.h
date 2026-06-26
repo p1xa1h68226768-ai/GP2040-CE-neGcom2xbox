@@ -6,6 +6,18 @@
 
 #include "drivers/xbone/XBOneAuth.h"
 
+// Define XBONE_AUTH_DEBUG=1 at compile time to enable diagnostic logs.
+// E.g. add -DXBONE_AUTH_DEBUG=1 to CMAKE_CXX_FLAGS
+#ifndef XBONE_AUTH_DEBUG
+#define XBONE_AUTH_DEBUG 0
+#endif
+
+#if XBONE_AUTH_DEBUG
+#define XBONE_DBG(fmt, ...) printf("[XB1Auth] " fmt "\r\n", ##__VA_ARGS__)
+#else
+#define XBONE_DBG(fmt, ...) ((void)0)
+#endif
+
 class XBOneAuthUSBListener : public USBListener {
 public:
     virtual void setup();
@@ -27,6 +39,7 @@ private:
     XGIPProtocol incomingXGIP;
     XGIPProtocol outgoingXGIP;
     XboxOneAuthData * xboxOneAuthData;
+    uint32_t lastRetryTime;   // Non-blocking retry timer for send failures
 };
 
 #endif // _XBONEAUTHUSBLISTENER_H_
