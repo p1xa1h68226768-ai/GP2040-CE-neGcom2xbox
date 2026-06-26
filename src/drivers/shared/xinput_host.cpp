@@ -297,7 +297,9 @@ bool xinputh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const 
         return true;
     // Xbox One instance == 0x47 0xD0
     } else if (desc_itf->bInterfaceSubClass == 0x47 &&
-               desc_itf->bInterfaceProtocol == 0xD0 && desc_itf->bNumEndpoints) {
+               desc_itf->bInterfaceProtocol == 0xD0 &&
+               desc_itf->bAlternateSetting == 0 &&
+               desc_itf->bNumEndpoints) {
         uint8_t ep = 0;
         while (ep < desc_itf->bNumEndpoints && pos < max_len) {
             uint8_t desc_type = tu_desc_type(p_desc);
@@ -318,10 +320,21 @@ bool xinputh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const 
             pos += tu_desc_len(p_desc);
             p_desc = tu_desc_next(p_desc);
         }
+
+        // Verify both IN and OUT endpoints exist
+        TU_VERIFY(p_xinput->ep_in != 0 && p_xinput->ep_out != 0, 0);
+
+        // Verify endpoint sizes fit within internal buffers
+        TU_VERIFY(p_xinput->epin_size <= CFG_TUH_XINPUT_EPIN_BUFSIZE, 0);
+        TU_VERIFY(p_xinput->epout_size <= CFG_TUH_XINPUT_EPOUT_BUFSIZE, 0);
+
         p_xinput->itf_num = desc_itf->bInterfaceNumber;
         p_xinput->type = XBOXONE;
 
-        _xinputh_dev->inst_count++;
+        // Use correct device by dev_addr (was incorrectly using array base)
+        xinputh_device_t *xone_dev = get_dev(dev_addr);
+        TU_VERIFY(xone_dev->inst_count < CFG_TUH_XINPUT, 0);
+        xone_dev->inst_count++;
         usbh_edpt_xfer(dev_addr, p_xinput->ep_in, p_xinput->epin_buf, p_xinput->epin_size);
         return true;
     } 
